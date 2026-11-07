@@ -1,6 +1,6 @@
 import express from "express";
 import dotenv from "dotenv";
-import { connectDB } from "./config/connectionDB.js";
+import { connectDB } from "./infra/db/config/connectionDB.js";
 import path from "node:path";
 import authRoutes from "./routes/authRoutes.js";
 dotenv.config({ path: path.resolve(process.cwd(), "src/config/.env") });
