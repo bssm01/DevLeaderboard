@@ -1,12 +1,9 @@
 import mongoose from "mongoose";
-
+import { config } from "../../../config/config.js";
 
 export const connectDB = async () => {
-  const dbUrl = process.env.DATABASE_URL;
-
-  if (!dbUrl) {
-    throw new Error("DATABASE_URL is not defined. Add it to src/config/.env");
-  }
+  const { User, Password, Host, Port, Name } = config.Database;
+  const dbUrl = `mongodb://${User}:${Password}@${Host}:${Port}/${Name}`;
 
   try {
     await mongoose.connect(dbUrl);
