@@ -1,20 +1,21 @@
-const defaults: Record<string, string | number> = {
+export const defaults = {
     DATABASE_HOST: "localhost",
-    DATABASE_PORT: 5432,
-    DATABASE_USER: "postgres",
-    DATABASE_PASSWORD: "postgres",
+    DATABASE_PORT: 27017,
+    DATABASE_USER: "",
+    DATABASE_PASSWORD: "",
     DATABASE_NAME: "devleaderboard",
-};
-
-function setDefault(key: string, value: string | number): void {
-    if (process.env[key] === undefined) {
-        console.log(`Config: '${key}' not set, using default: ${value}`);
-        process.env[key] = String(value);
-    }
-}
-
-export function applyDefaults(): void {
-    for (const [key, value] of Object.entries(defaults)) {
-        setDefault(key, value);
-    }
-}
+    PORT: 3000,
+    JWT_EXPIRES_MINUTES: 60,
+    RATE_LIMIT_WINDOW_MS: 15 * 60 * 1000,
+    RATE_LIMIT_MAX: 100,
+    RATE_LIMIT_REFRESH_WINDOW_MS: 15 * 60 * 1000,
+    RATE_LIMIT_REFRESH_MAX: 10,
+    GITHUB_API_URL: "https://api.github.com",
+    GITHUB_TIMEOUT_MS: 15000,
+    SCORE_COMMIT: 5,
+    SCORE_PR: 10,
+    SCORE_REVIEW: 3,
+    SCORE_ISSUE: 2,
+    LEADERBOARD_CRON: "0 */6 * * *",
+    LOG_LEVEL: "info",
+} as const;

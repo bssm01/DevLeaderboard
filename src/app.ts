@@ -1,22 +1,35 @@
 import express from "express";
-import dotenv from "dotenv";
-import { connectDB } from "./infra/db/config/connectionDB.js";
-import path from "node:path";
+import rateLimit from "express-rate-limit";
+import helmet from "helmet";
+import { config } from "./config/config.js";
+import { errorHandler, notFound } from "./middleware/errorHandler.js";
+import { requestLog } from "./middleware/requestLog.js";
 import authRoutes from "./routes/authRoutes.js";
-dotenv.config({ path: path.resolve(process.cwd(), "src/config/.env") });
-
+import leaderboardRoutes from "./routes/leaderboardRoutes.js";
 
 const app = express();
+
+app.use(helmet());
 app.use(express.json());
-app.use("/auth", authRoutes);
+// Structured access log; LOG_LEVEL=warn silences it in tests.
+app.use(requestLog);
 
-const PORT = process.env.PORT || 3000;
+const authLimiter = rateLimit({
+    windowMs: config.RateLimit.WindowMs,
+    limit: config.RateLimit.Max,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: "Too many requests, please try again later" },
+});
 
-await connectDB();
+app.get("/health", (_req, res) => {
+    res.json({ status: "ok" });
+});
 
-  app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
-  });
+app.use("/auth", authLimiter, authRoutes);
+app.use("/leaderboard", leaderboardRoutes);
 
+app.use(notFound);
+app.use(errorHandler);
 
-
+export default app;
