@@ -22,7 +22,7 @@ npm run dev                 # http://localhost:3000
 Requirements:
 
 - **Node 22+** (the project uses `import.meta.dirname` and native `fetch`)
-- **MongoDB** running locally (or point `DATABASE_*` at a remote instance)
+- **MongoDB** — either a local instance (default) or **MongoDB Atlas** via `DATABASE_URL`
 - A **GitHub PAT** with `repo` + `read:org` scopes (classic) — required at boot; the token
   works for both public and private repositories
 
@@ -35,9 +35,11 @@ or an unknown `LOG_LEVEL`.
 | Variable | Default | Description |
 |---|---|---|
 | `PORT` | `3000` | HTTP port |
-| `DATABASE_HOST` | `localhost` | MongoDB host |
-| `DATABASE_PORT` | `27017` | MongoDB port |
-| `DATABASE_USER` / `DATABASE_PASSWORD` | *(empty)* | Leave empty for a local unauthenticated MongoDB |
+| `DATABASE_URL` | — | Full connection string; **wins over everything below** when set |
+| `DATABASE_HOST` | `localhost` | MongoDB host (Atlas: `cluster0.xxxxx.mongodb.net`) |
+| `DATABASE_PORT` | `27017` | MongoDB port (**ignored** when the scheme is `mongodb+srv`) |
+| `DATABASE_SCHEME` | `mongodb` | `mongodb` or `mongodb+srv` — Atlas requires `mongodb+srv` |
+| `DATABASE_USER` / `DATABASE_PASSWORD` | *(empty)* | Must be set together; both empty = local unauthenticated MongoDB |
 | `DATABASE_NAME` | `devleaderboard` | Database name |
 | `JWT_SECRET` | — | **Required**, min 16 chars (use 32+ random chars in production) |
 | `JWT_EXPIRES_MINUTES` | `60` | Access-token lifetime |

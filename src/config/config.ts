@@ -18,6 +18,10 @@ for (const candidate of dotenvCandidates) {
 function loadConfig(): Config {
     const raw = {
         Database: {
+            // An empty value means "unset" so `DATABASE_URL=` in .env falls
+            // back to the local host/port settings instead of failing.
+            Url: process.env.DATABASE_URL?.trim() || undefined,
+            Scheme: process.env.DATABASE_SCHEME ?? defaults.DATABASE_SCHEME,
             Host: process.env.DATABASE_HOST ?? defaults.DATABASE_HOST,
             Port: process.env.DATABASE_PORT ?? defaults.DATABASE_PORT,
             User: process.env.DATABASE_USER ?? defaults.DATABASE_USER,

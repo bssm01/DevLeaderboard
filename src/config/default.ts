@@ -1,6 +1,7 @@
 export const defaults = {
     DATABASE_HOST: "localhost",
     DATABASE_PORT: 27017,
+    DATABASE_SCHEME: "mongodb",
     DATABASE_USER: "",
     DATABASE_PASSWORD: "",
     DATABASE_NAME: "devleaderboard",

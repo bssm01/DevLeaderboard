@@ -2,7 +2,14 @@ import { describe, expect, it } from "vitest";
 import { configSchema } from "./schema.js";
 
 const validRaw = {
-    Database: { Host: "localhost", Port: "27017", User: "", Password: "", Name: "devleaderboard" },
+    Database: {
+        Host: "localhost",
+        Port: "27017",
+        Scheme: "mongodb",
+        User: "",
+        Password: "",
+        Name: "devleaderboard",
+    },
     Port: "3000",
     Jwt: { Secret: "a".repeat(32), ExpiresMinutes: "60" },
     RateLimit: { WindowMs: "900000", Max: "100", RefreshWindowMs: "900000", RefreshMax: "10" },
@@ -167,5 +174,108 @@ describe("configSchema", () => {
         if (!bad.success) {
             expect(bad.error.issues.some((issue) => issue.message.includes("LOG_LEVEL"))).toBe(true);
         }
+    });
+
+    it("accepts an Atlas mongodb+srv connection string", () => {
+        const result = configSchema.safeParse({
+            ...validRaw,
+            Database: {
+                ...validRaw.Database,
+                Url: "mongodb+srv://user:pass@cluster0.abcde.mongodb.net/wawachi?retryWrites=true&w=majority",
+            },
+        });
+
+        expect(result.success).toBe(true);
+        if (result.success) {
+            expect(result.data.Database.Url).toContain("mongodb+srv://");
+            // Trimming: pasted strings often carry stray whitespace.
+            expect(result.data.Database.Url).not.toMatch(/^\s|\s$/);
+        }
+    });
+
+    it("accepts a local mongodb:// connection string", () => {
+        const result = configSchema.safeParse({
+            ...validRaw,
+            Database: { ...validRaw.Database, Url: "mongodb://localhost:27017/wawachi" },
+        });
+        expect(result.success).toBe(true);
+    });
+
+    it("leaves the connection string undefined when not provided", () => {
+        const result = configSchema.safeParse(validRaw);
+        expect(result.success).toBe(true);
+        if (result.success) expect(result.data.Database.Url).toBeUndefined();
+    });
+
+    it("rejects a non-mongodb connection string (e.g. http or redis)", () => {
+        for (const Url of ["http://localhost:27017", "redis://localhost:6379", "localhost:27017"]) {
+            const result = configSchema.safeParse({
+                ...validRaw,
+                Database: { ...validRaw.Database, Url },
+            });
+            expect(result.success).toBe(false);
+            if (!result.success) {
+                expect(
+                    result.error.issues.some((issue) => issue.message.includes("DATABASE_URL")),
+                ).toBe(true);
+            }
+        }
+    });
+
+    it("accepts the mongodb+srv scheme for Atlas and rejects anything else", () => {
+        const srv = configSchema.safeParse({
+            ...validRaw,
+            Database: { ...validRaw.Database, Scheme: "mongodb+srv" },
+        });
+        expect(srv.success).toBe(true);
+
+        for (const Scheme of ["http", "mongo", "MONGODB+SRV", ""]) {
+            const bad = configSchema.safeParse({
+                ...validRaw,
+                Database: { ...validRaw.Database, Scheme },
+            });
+            expect(bad.success).toBe(false);
+            if (!bad.success) {
+                expect(
+                    bad.error.issues.some((issue) => issue.message.includes("DATABASE_SCHEME")),
+                ).toBe(true);
+            }
+        }
+    });
+
+    it("rejects a username without a password (auth would be silently skipped)", () => {
+        const result = configSchema.safeParse({
+            ...validRaw,
+            Database: { ...validRaw.Database, User: "admin" },
+        });
+
+        expect(result.success).toBe(false);
+        if (!result.success) {
+            expect(
+                result.error.issues.some((issue) => issue.message.includes("DATABASE_PASSWORD")),
+            ).toBe(true);
+        }
+    });
+
+    it("rejects a password without a username", () => {
+        const result = configSchema.safeParse({
+            ...validRaw,
+            Database: { ...validRaw.Database, Password: "secret" },
+        });
+
+        expect(result.success).toBe(false);
+        if (!result.success) {
+            expect(
+                result.error.issues.some((issue) => issue.message.includes("DATABASE_USER")),
+            ).toBe(true);
+        }
+    });
+
+    it("accepts credentials set together", () => {
+        const result = configSchema.safeParse({
+            ...validRaw,
+            Database: { ...validRaw.Database, User: "admin", Password: "s3cret" },
+        });
+        expect(result.success).toBe(true);
     });
 });
