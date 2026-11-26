@@ -238,12 +238,12 @@ only way to include it.
 
 **Request.** `malek-bz09` was still missing "even in dev branch".
 
-**Investigation.** The account has no public org membership and no commits, PRs, reviews or issues
-in any `MicroClub-USTHB` repository, including every branch named `dev`/`develop`. Its public event
-stream is entirely `maito-guy/wildfire-dz` (a personal repository), where it pushed repeatedly to
-`dev` and several feature branches. The account's email is
-`abdelmalek.aidoussi@etu.usthb.dz`, and its `dev` commits are correctly linked to `malek-bz09`, so
-this was a scope problem, not an attribution problem.
+**Investigation.** At that point the collector only had public repository visibility, and the
+account had no public org membership and no public commits, PRs, reviews or issues in any
+`MicroClub-USTHB` repository, including every branch named `dev`/`develop`. Its public event stream
+was entirely `maito-guy/wildfire-dz` (a personal repository), where it pushed repeatedly to `dev`
+and several feature branches. The account's email is `abdelmalek.aidoussi@etu.usthb.dz`, and its
+`dev` commits are correctly linked to `malek-bz09`, so this looked like a scope problem.
 
 **What changed**
 
@@ -255,10 +255,9 @@ this was a scope problem, not an attribution problem.
   window, every review, and issues opened or solved.
 - **No duplicate history.** Organization repositories are scanned first, and every org commit SHA is
   recorded. An external fork or mirror skips those SHAs, so shared history is counted once.
-- **Default configuration.** `LEADERBOARD_EXTRA_REPOS` defaults to
-  `MicroClub-USTHB=maito-guy/wildfire-dz`, so the fix survives a fresh clone and Docker deploy.
-  `backend/config/.env` sets the same value explicitly, and `.env.example`, `docker-compose.yml`
-  and both READMEs document how to override or disable it.
+- **Default configuration (later reverted).** `LEADERBOARD_EXTRA_REPOS` briefly defaulted to
+  `MicroClub-USTHB=maito-guy/wildfire-dz` so the fix survived a fresh clone and Docker deploy. Phase
+  15 makes the setting empty again: the board is organization-only unless an operator opts in.
 
 **Verification**
 
@@ -274,6 +273,74 @@ this was a scope problem, not an attribution problem.
 
 **Outcome.** Club work hosted in a personal repository can now be counted explicitly. Without the
 allowlist entry the board stays strictly organization-scoped.
+
+### Phase 14 — Only organization contributors earn external credit
+
+**Request.** Remove people who did not contribute in the MicroClub organization, "like maito-guy and
+others".
+
+**Investigation.** Two accounts only ever appeared through `maito-guy/wildfire-dz`: the repository
+owner and `malek-bz09`. Their records differ completely:
+
+- `maito-guy` has **zero** organization activity in any period. His all-time external counts
+  (33 commits, 4 PRs, 0 reviews, 6 issues) are exactly his board record, so the external repository
+  was his only entry point.
+- `malek-bz09` is a real org contributor. Once the token's private-repository visibility was taken
+  into account, his all-time organization activity is 53 commits, 15 PRs and 2 reviews on top of the
+  external project (116 total commits versus 63 external). In November alone he has 44 commits
+  across 34 branches of the private `MicroClub-USTHB/HR-Events` repository, 12 PRs opened there
+  (13 counting one closed in November) and one issue. A default-branch-only check misses this,
+  which is why the all-branch scan matters.
+
+**What changed**
+
+- **External credit requires org activity.** After GraphQL and the public/private scans are merged,
+  the collector keeps external activity only for logins whose organization counts are non-zero in
+  the same window. Everyone else is dropped, including the external project's owner.
+- **One flaky repository no longer fails a refresh.** GitHub occasionally answers a large branch,
+  commit or review read with a 500/502/503/504. After the client's retries, that repository is now
+  skipped with a warning instead of discarding the whole snapshot. Organization-level reads still
+  fail loudly, so a real outage preserves the previous board.
+- **No new configuration.** The allowlist still says which projects belong to the club; the filter
+  decides who may benefit from them. `maito-guy` can never re-enter through a personal repository.
+
+**Verification**
+
+- Backend `typecheck` ✅ · `build` ✅.
+- Forced month refresh: **26** contributors (was 27, exactly one removed). `maito-guy` is gone;
+  `malek-bz09` stays at **rank 2** with **107 commits, 35 PRs, 1 review, 44 issues, score 976** —
+  44 of those commits, 13 PRs and the review are inside the organization.
+- Two repositories (`Robotics`, `sumo-bot`) answered with a transient GitHub gateway error and were
+  skipped with a snapshot warning instead of failing the refresh.
+
+**Outcome.** The board lists club contributors only. External projects boost people who already
+work in the organization and cannot introduce outsiders.
+
+### Phase 15 — Organization-only board
+
+**Request.** "I don't need external projects, I need only in MicroClub org."
+
+**What changed**
+
+- **Empty default.** `LEADERBOARD_EXTRA_REPOS` is empty in `default.ts`, in the local
+  `backend/config/.env`, in `.env.example` and in the `docker-compose.yml` default. Nothing outside
+  `MicroClub-USTHB` is scanned or counted unless an operator explicitly opts in.
+- **External code is opt-in.** The allowlist, the external scan and the org-contributor guard stay
+  available, but no project is configured, so the board is strictly organization-scoped.
+- **Documentation.** Both READMEs now describe external projects as optional and state that the
+  board counts only organization repositories by default.
+
+**Verification**
+
+- Backend `typecheck` ✅ · `build` ✅; frontend `typecheck` ✅ · `lint` ✅ · `build` ✅.
+- Forced organization-only month refresh: **201 s**, **28 contributors**. `maito-guy` is absent;
+  `malek-bz09` ranks **5** with **44 commits, 13 PRs, 1 review, 2 issues, score 357** — organization
+  only, no external project.
+- Forced organization-only all-time refresh: **703 s**, **346 contributors**. `maito-guy` is absent;
+  `malek-bz09` ranks **37** with **53 commits, 15 PRs, 2 reviews, 3 issues, score 427**.
+
+**Outcome.** The leaderboard represents work done inside MicroClub only. `malek-bz09` stays because
+of his `HR-Events` commits and PRs; `maito-guy` and any other external-only account disappear.
 
 ## Stack decisions
 

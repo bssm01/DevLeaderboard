@@ -21,9 +21,9 @@ services:
       DATABASE_PORT: 27017
       DATABASE_NAME: devleaderboard
       GITHUB_TOKEN: ${GITHUB_TOKEN:?set GITHUB_TOKEN (needed to boot)}
-      # External projects count toward the same board. The default keeps the
-      # club's wildfire-dz project; set it to an empty value to disable.
-      LEADERBOARD_EXTRA_REPOS: ${LEADERBOARD_EXTRA_REPOS:-MicroClub-USTHB=maito-guy/wildfire-dz}
+      # Optional external projects layered on the same board. Empty by default:
+      # only MicroClub organization repositories are counted.
+      LEADERBOARD_EXTRA_REPOS: ${LEADERBOARD_EXTRA_REPOS:-}
       # Optional: the Dev department filter. Leave MCID_URL empty to turn it off.
       MCID_URL: ${MCID_URL:-}
       MCID_API_KEY: ${MCID_API_KEY:-}

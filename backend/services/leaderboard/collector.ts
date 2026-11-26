@@ -216,13 +216,27 @@ const isPermissionError = (error: unknown): boolean =>
 
 /**
  * A repository that cannot be read (permission, missing, or empty) is safe to
- * skip. Rate limits, network failures and 5xx must fail the refresh so the
+ * skip. A rate limit or a network failure must fail the refresh so the
  * previous snapshot stays on screen instead of being replaced by a partial one.
  */
-const isSkippableRepoError = (error: unknown): boolean =>
+const isUnavailableRepoError = (error: unknown): boolean =>
     error instanceof GitHubError &&
     (error.status === 403 || error.status === 404 || error.status === 409) &&
     error.rateLimit?.remaining !== 0;
+
+/**
+ * GitHub intermittently answers a large branch, commit or review read with a
+ * gateway error. The client already retries; if it persists, that one
+ * repository is skipped with a warning rather than discarding the whole
+ * snapshot. A total outage is still surfaced through the organization-level
+ * reads, which do not use this predicate.
+ */
+const isTransientRepoError = (error: unknown): boolean =>
+    error instanceof GitHubError &&
+    (error.status === 500 || error.status === 502 || error.status === 503 || error.status === 504);
+
+const isSkippableRepoError = (error: unknown): boolean =>
+    isUnavailableRepoError(error) || isTransientRepoError(error);
 
 const errorDetail = (error: unknown): string =>
     error instanceof Error ? error.message : String(error);
@@ -297,7 +311,9 @@ const fetchOrgRepos = async (
     try {
         return await drain(client.paginateRest<RepoRest>(reposPath));
     } catch (error) {
-        if (isSkippableRepoError(error)) return [];
+        // Only a permission or missing-org answer may degrade: an empty list
+        // would silently erase the whole board.
+        if (isUnavailableRepoError(error)) return [];
         throw error;
     }
 };
@@ -1040,6 +1056,28 @@ const mergeActivity = (
     return contributors;
 };
 
+/**
+ * External projects only count for people who also contributed inside the
+ * organization during the same window. A project owner or passer-by whose only
+ * visible work is the external repository is not a club contributor, so its
+ * activity is dropped instead of putting an outsider on the board.
+ */
+const externalActivityForOrg = (
+    external: Map<string, ActivityCounts>,
+    orgContributors: readonly RawContributor[],
+): Map<string, ActivityCounts> => {
+    const orgLogins = new Set(
+        orgContributors
+            .filter(
+                (entry) =>
+                    entry.commits + entry.pullRequests + entry.reviews + entry.issues > 0,
+            )
+            .map((entry) => entry.login.toLowerCase()),
+    );
+
+    return new Map([...external].filter(([login]) => orgLogins.has(login)));
+};
+
 interface BatchResult {
     user: BatchUser | null;
     error?: string;
@@ -1211,14 +1249,21 @@ export const collectContributions = async (
     // 6. Add what GraphQL's contribution graph leaves out. Public repositories
     //    always have GraphQL counts; private ones only when `read:user` is
     //    available, otherwise the full direct scan is the only source.
-    //    External projects are never part of the org graph, so their direct
-    //    scan is always merged.
     contributors = mergeActivity(contributors, scan.publicExtra);
     contributors = mergeActivity(
         contributors,
         privateVisible ? scan.privateExtra : scan.privateFull,
     );
-    contributors = mergeActivity(contributors, scan.externalFull);
+
+    // 7. External projects are a bonus for club contributors, never an entry
+    //    point: an account must already have organization activity in this
+    //    window to keep the work it did on the external project. The direct
+    //    scan is the only source of external counts because the
+    //    organization-scoped contribution graph cannot see those repositories.
+    contributors = mergeActivity(
+        contributors,
+        externalActivityForOrg(scan.externalFull, contributors),
+    );
 
     return {
         contributors,
